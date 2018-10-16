@@ -1,5 +1,6 @@
-# conditional SpecGAN Tensorflow
-a (conditional) audio synthesis generative adversarial network that generates spectrogram, which furthur synthesize raw waveform.
+# conditional SpecGAN
+**A (conditional) audio synthesis generative adversarial network that generates spectrogram, which furthur synthesize raw waveform, implementation in Tensorflow**
+![](conditional_SpecGAN_Tensorflow/data/model.png)
 
 ## Requirements: 
 * **Tensorflow r1.10.1**
@@ -15,17 +16,18 @@ This work is based on the original implementation of [SpecGAN](https://github.co
 
 
 ## Build Dataset
-1. Download training data [here](https://drive.google.com/open?id=102wZsFhhCOhq21UQT0cMH2oscLwyetrf)
+* Download training data [here](https://drive.google.com/open?id=102wZsFhhCOhq21UQT0cMH2oscLwyetrf)
 
-2. Run './src/utils/preprocess_data.py' to process data or download the processed data [here](https://drive.google.com/file/d/1qyFRsSLI0cxyN10vFZnfcma4THPUulIN/view?usp=sharing)
+* Run './src/utils/preprocess_data.py' to process data or download the processed data [here](https://drive.google.com/file/d/1qyFRsSLI0cxyN10vFZnfcma4THPUulIN/view?usp=sharing)
 
-3. Run './src/utils/visualize_wav.py' to visualize the processed clean data or download the results [here](https://drive.google.com/file/d/1vD_ufIBv5H7mCpmivPb5k9sBah2Ine9c/view?usp=sharing)
+* Run './src/utils/visualize_wav.py' to visualize the processed clean data or download the results [here](https://drive.google.com/file/d/1vD_ufIBv5H7mCpmivPb5k9sBah2Ine9c/view?usp=sharing)
 
-The preprocess result can be demonstrated by the following visualization:
+* The preprocess result can be demonstrated by the following visualization:
+![](conditional_SpecGAN_Tensorflow/data/preprocess_demo.jpeg)
 
-4. Run './src/utils/make_tfrecord.py' to process .wav files into .tfrecord training ready files, or download the processed data [here](https://drive.google.com/file/d/1h1zJ3SiXafzE0Xn-7JWVeLtSckV3LrVT/view?usp=sharing)
+* Run './src/utils/make_tfrecord.py' to process .wav files into .tfrecord training ready files, or download the processed data [here](https://drive.google.com/file/d/1h1zJ3SiXafzE0Xn-7JWVeLtSckV3LrVT/view?usp=sharing)
 
-5. Extract the .tgz file in step.4, and place them to the relevent path according to args.data_dir in ./src/config.py: 
+* Extract the .tgz file in step.4, and place them to the relevent path according to args.data_dir in ./src/config.py: 
 ```
 data_dir='../data/sc09_preprocess_energy'
 ```
@@ -33,17 +35,17 @@ This default path can be modified by changing the '--data_dir option in './src/c
 
 
 ## Usage
-1. Resume or train a new SpecGAN model by the following command:
+* Resume or train a new SpecGAN model by the following command:
 ```
 python3 ./src/runner.py train
 ```
 
-2. To inference and generate from a trained SpecGAN model, use the following command:
+* To inference and generate from a trained SpecGAN model, use the following command:
 ```
 python3 ./src/runner.py generate
 ```
 
-3. To train or generate from a conditional SpecGAN, use the following command (**Note: This feature is still under implementation and is not complete!**):
+* To train or generate from a conditional SpecGAN, use the following command (**Note: This feature is still under implementation and is not complete!**):
 ```
 python3 ./src/runner.py train --conditional
 python3 ./src/runner.py generate --conditional
