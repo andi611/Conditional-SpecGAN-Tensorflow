@@ -12,7 +12,8 @@
 
 
 ## Introduction
-This work is based on the original implementation of [SpecGAN](https://github.com/chrisdonahue/wavegan), where I furthur explore on conditioning SpecGAN training. Additionally, an energy based data preprocessing scheme is applied, which results in an improvement in audio quality.
+Text-to-Speech Synthesis by Generating Spectrograms using Generative Adversarial Network. This work is based on the original implementation of [SpecGAN](https://github.com/chrisdonahue/wavegan), where I furthur explore on conditioning SpecGAN training. Additionally, an energy based data preprocessing scheme is applied, which results in an improvement in audio quality.
+
 The preprocess result can be demonstrated by the following visualization:
 ![](https://github.com/andi611/conditional_SpecGAN_Tensorflow/blob/master/data/preprocess_demo.jpeg)
 
