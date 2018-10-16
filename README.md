@@ -1,6 +1,6 @@
 # conditional SpecGAN
 **A (conditional) audio synthesis generative adversarial network that generates spectrogram, which furthur synthesize raw waveform, implementation in Tensorflow**
-![](conditional_SpecGAN_Tensorflow/data/model.png)
+![](https://github.com/andi611/conditional_SpecGAN_Tensorflow/blob/master/data/model.png)
 
 ## Requirements: 
 * **Tensorflow r1.10.1**
@@ -23,7 +23,7 @@ This work is based on the original implementation of [SpecGAN](https://github.co
 * Run './src/utils/visualize_wav.py' to visualize the processed clean data or download the results [here](https://drive.google.com/file/d/1vD_ufIBv5H7mCpmivPb5k9sBah2Ine9c/view?usp=sharing)
 
 * The preprocess result can be demonstrated by the following visualization:
-![](conditional_SpecGAN_Tensorflow/data/preprocess_demo.jpeg)
+![](https://github.com/andi611/conditional_SpecGAN_Tensorflow/blob/master/data/preprocess_demo.jpeg)
 
 * Run './src/utils/make_tfrecord.py' to process .wav files into .tfrecord training ready files, or download the processed data [here](https://drive.google.com/file/d/1h1zJ3SiXafzE0Xn-7JWVeLtSckV3LrVT/view?usp=sharing)
 
