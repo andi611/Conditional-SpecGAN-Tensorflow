@@ -31,7 +31,7 @@ def generate(args, cond=False):
 	#---get model name---#
 	mdls = glob.glob(os.path.join(args.train_dir, '*.meta'))
 	mdl_name = sorted(mdls)[-1].split('-')[-1].split('.')[0]
-	mdl_name = 'cond_specgan_' + mdl_name if args.conditional else 'specgan_' + mdl_name
+	mdl_name = 'cond_SpecGAN_' + mdl_name if args.conditional else 'SpecGAN_' + mdl_name
 	if args.conditional: args.generate_dir = args.generate_dir + '_cond' 
 	mdl_dir = os.path.join(args.generate_dir, mdl_name)
 
@@ -47,13 +47,18 @@ def generate(args, cond=False):
 	saver.restore(sess, save_path=tf.train.latest_checkpoint(checkpoint_dir=args.train_dir))
 
 	#---create 50 random latent vectors z---#
-	_z = (np.random.rand(args.generate_num, args._D_Z) * 2.) - 1 # -> [-1, 1] uniform distribution
+	if args.SpecGAN_prior_noise == 'uniform':
+		_z = np.random.uniform(low=-1., high=1.0, size=(args.generate_num, args._D_Z))
+	elif args.SpecGAN_prior_noise == 'normal':
+		_z = np.random.normal(loc=0., scale=1.0, size=(args.generate_num, args._D_Z))
+	else:
+		raise NotImplementedError()
 
 	#---get tensors---#
 	z = graph.get_tensor_by_name('z:0')
 	ngl = graph.get_tensor_by_name('ngl:0')
 	G_z = graph.get_tensor_by_name('G_z:0')
-	feed_dict = {z: _z, ngl: args.specgan_ngl}
+	feed_dict = {z: _z, ngl: args.SpecGAN_ngl}
 	if cond:
 		label = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'] * 5
 		mapper = loader._parse_labels(fps=None, mapper_path=args.train_dir)

@@ -28,7 +28,7 @@ def main():
 
 	#---display model type---#
 	print('-' * 80)
-	print('# Training Conditional SpecGan!') if args.conditional else print('# Training SpecGan!')
+	print('# Training Conditional SpecGAN!') if args.conditional else print('# Training SpecGAN!')
 	print('-' * 80)
 
 	#---make train dir---#
@@ -41,16 +41,18 @@ def main():
 		f.write('\n'.join([str(k) + ',' + str(v) for k, v in sorted(vars(args).items(), key=lambda x: x[0])]))
 
 	#---make model kwarg dicts---#
-	setattr(args, 'specgan_g_kwargs', {
-			'kernel_len': args.specgan_kernel_len,
-			'dim': args.specgan_dim,
-			'use_batchnorm': args.specgan_batchnorm,
-			'upsample': args.specgan_genr_upsample
+	setattr(args, 'SpecGAN_g_kwargs', {
+			'kernel_len': args.SpecGAN_kernel_len,
+			'dim': args.SpecGAN_dim,
+			'use_batchnorm': args.SpecGAN_batchnorm,
+			'upsample': args.SpecGAN_genr_upsample,
+			'initializer': args.SpecGAN_model_initializer,
 	})
-	setattr(args, 'specgan_d_kwargs', {
-			'kernel_len': args.specgan_kernel_len,
-			'dim': args.specgan_dim,
-			'use_batchnorm': args.specgan_batchnorm
+	setattr(args, 'SpecGAN_d_kwargs', {
+			'kernel_len': args.SpecGAN_kernel_len,
+			'dim': args.SpecGAN_dim,
+			'use_batchnorm': args.SpecGAN_batchnorm,
+			'initializer': args.SpecGAN_model_initializer,
 	})
 
 	#---collect path to data---#

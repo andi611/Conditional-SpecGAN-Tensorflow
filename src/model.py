@@ -1,35 +1,68 @@
+# -*- coding: utf-8 -*- #
+"""*********************************************************************************************"""
+#   FileName     [ model.py ]
+#   Synopsis     [ GAN model architecture ]
+#   Author       [ Ting-Wei Liu (Andi611) ]
+#   Copyright    [ Copyleft(c), NTUEE, NTU, Taiwan ]
+"""*********************************************************************************************"""
+
+
+###############
+# IMPORTATION #
+###############
 import tensorflow as tf
 
 
-def word_embedding(w, vocab_size=10, embedding_dim=256, train=False):
+"""
+	tf variable initializer
+"""
+def variable_initializer(initializer):
+	if initializer == 'orthogonal':
+		return tf.orthogonal_initializer(gain=1.0, seed=None)
+	elif initializer == 'default':
+		return None
+	else:
+		return NotImplementedError()
+
+
+"""
+	Input: n-class one-hot vector
+	Output: word embedding vector
+"""
+def word_embedding(word, vocab_size=10, embedding_dim=256, train=False):
 	W = tf.get_variable(name='W_embedding_matrix', 
 						shape=[vocab_size, embedding_dim],
 						dtype=tf.float32,
-						initializer=tf.truncated_normal_initializer(stddev=1.0),
-						trainable=True)
+						initializer=tf.truncated_normal_initializer(mean=0.0, stddev=1.0, seed=7942089),
+						trainable=train)
 	b = tf.get_variable(name='b_embedding_matrix',
 						shape=[embedding_dim], 
 						dtype=tf.float32,
 						initializer=tf.constant_initializer(0.0),
-						trainable=True)
-	w_embedding = tf.nn.xw_plus_b(w, W, b) # -> [batch_size, vocab_size] * [vocab_size, embedding_size] = [batch_size, embedding_size]
+						trainable=train)
+	w_embedding = tf.nn.xw_plus_b(word, W, b) # -> [batch_size, vocab_size] * [vocab_size, embedding_size] = [batch_size, embedding_size]
 	return w_embedding
 
 
+"""
+	transpose convolution
+"""
 def conv2d_transpose(
 		inputs,
 		filters,
 		kernel_len,
 		stride=2,
 		padding='same',
-		upsample='zeros'):
+		upsample='zeros',
+		initializer='default'):
 	if upsample == 'zeros':
 		return tf.layers.conv2d_transpose(
 				inputs,
 				filters,
 				kernel_len,
 				strides=(stride, stride),
-				padding='same')
+				padding='same',
+				kernel_initializer=variable_initializer(initializer))
 	elif upsample in ['nn', 'linear', 'cubic']:
 		batch_size = tf.shape(inputs)[0]
 		_, h, w, nch = inputs.get_shape().as_list()
@@ -50,7 +83,8 @@ def conv2d_transpose(
 				filters,
 				kernel_len,
 				strides=(1, 1),
-				padding='same')
+				padding='same',
+				kernel_initializer=variable_initializer(initializer))
 	else:
 		raise NotImplementedError()
 
@@ -59,17 +93,18 @@ def conv2d_transpose(
 	Input: [None, 100]
 	Output: [None, 128, 128, 1]
 """
-def SpecGANGenerator(
+def Spec_GAN_Generator(
 		z,
-		w=None,
+		word=None,
 		kernel_len=5,
 		dim=64,
 		use_batchnorm=False,
 		upsample='zeros',
+		initializer='default',
 		train=False,
 		cond=False):
 
-	if cond == True and w == None: raise ValueError('Must feed a one-hot tensor as word condition for conditional training!')
+	if cond == True and word == None: raise ValueError('Must feed a one-hot tensor as word condition for conditional training!')
 	batch_size = tf.shape(z)[0]
 
 	if use_batchnorm:
@@ -80,7 +115,7 @@ def SpecGANGenerator(
 	# vector concatenation for conditional training
 	# [64, 100] + [64, 256] -> [64, 356]
 	if cond:
-		output = tf.concat(values=[z, w], axis=1, name='z_w_concat')
+		output = tf.concat(values=[z, word], axis=1, name='z_w_concat')
 	else:
 		output = z
 	
@@ -145,15 +180,16 @@ def lrelu(inputs, alpha=0.2):
 	Input: [None, 128, 128, 1]
 	Output: [None] (linear) output
 """
-def SpecGANDiscriminator(
+def Spec_GAN_Discriminator(
 		x,
-		w=None,
+		word=None,
 		kernel_len=5,
 		dim=64,
 		use_batchnorm=False,
+		initializer='default',
 		cond=False):
 
-	if cond == True and w == None: raise ValueError('Must feed a one-hot tensor as word condition for conditional training!')
+	if cond == True and word == None: raise ValueError('Must feed a one-hot tensor as word condition for conditional training!')
 	batch_size = tf.shape(x)[0]
 
 	if use_batchnorm:
@@ -165,43 +201,53 @@ def SpecGANDiscriminator(
 	# [128, 128, 1] -> [64, 64, 64]
 	output = x
 	with tf.variable_scope('downconv_0'):
-		output = tf.layers.conv2d(output, dim, kernel_len, 2, padding='SAME')
-	output = lrelu(output)
+		output = tf.layers.conv2d(output, dim, kernel_len, 2,
+								padding='SAME',
+								kernel_initializer=variable_initializer(initializer))
+	output = tf.nn.leaky_relu(output)
 
 	# Layer 1
 	# [64, 64, 64] -> [32, 32, 128]
 	with tf.variable_scope('downconv_1'):
-		output = tf.layers.conv2d(output, dim * 2, kernel_len, 2, padding='SAME')
+		output = tf.layers.conv2d(output, dim * 2, kernel_len, 2, 
+								padding='SAME',
+								kernel_initializer=variable_initializer(initializer))
 		output = batchnorm(output)
-	output = lrelu(output)
+	output = tf.nn.leaky_relu(output)
 
 	# Layer 2
 	# [32, 32, 128] -> [16, 16, 256]
 	with tf.variable_scope('downconv_2'):
-		output = tf.layers.conv2d(output, dim * 4, kernel_len, 2, padding='SAME')
+		output = tf.layers.conv2d(output, dim * 4, kernel_len, 2, 
+								padding='SAME',
+								kernel_initializer=variable_initializer(initializer))
 		output = batchnorm(output)
-	output = lrelu(output)
+	output = tf.nn.leaky_relu(output)
 
 	# Layer 3
 	# [16, 16, 256] -> [8, 8, 512]
 	with tf.variable_scope('downconv_3'):
-		output = tf.layers.conv2d(output, dim * 8, kernel_len, 2, padding='SAME')
+		output = tf.layers.conv2d(output, dim * 8, kernel_len, 2, 
+								padding='SAME',
+								kernel_initializer=variable_initializer(initializer))
 		output = batchnorm(output)
-	output = lrelu(output)
+	output = tf.nn.leaky_relu(output)
 
 	# Layer 4
 	# [8, 8, 512] -> [4, 4, 1024]
 	with tf.variable_scope('downconv_4'):
-		output = tf.layers.conv2d(output, dim * 16, kernel_len, 2, padding='SAME')
+		output = tf.layers.conv2d(output, dim * 16, kernel_len, 2, 
+								padding='SAME',
+								kernel_initializer=variable_initializer(initializer))
 		output = batchnorm(output)
-	output = lrelu(output)
+	output = tf.nn.leaky_relu(output)
 
 	# vector concatenation for conditional training
 	# [64, 256] -> [64, 1, 256] -> [64, 1, 1, 256] -> [64, 4, 4, 256] + [64, 4, 4, 1024]
 	if cond:
-		w = tf.expand_dims(w, axis=1)
-		w = tf.expand_dims(w, axis=2)
-		tiled_w = tf.tile(input=w, multiples=[1,4,4,1], name='tiled_w_embeddings') # -> This operation creates a new tensor by replicating input multiples times
+		word = tf.expand_dims(word, axis=1)
+		word = tf.expand_dims(word, axis=2)
+		tiled_w = tf.tile(input=word, multiples=[1,4,4,1], name='tiled_w_embeddings') # -> This operation creates a new tensor by replicating input multiples times
 		concat_w = tf.concat([output, tiled_w], axis=3, name='h3_concat') # -> shape: [64, 4, 4, 256] + [64, 4, 4, 1024] -> [64, 4, 4, 1024+256]
 		output = tf.reshape(output, [batch_size, -1])
 	else:
@@ -209,30 +255,9 @@ def SpecGANDiscriminator(
 
 	# Connect to single logit
 	with tf.variable_scope('output'):
-		output = tf.layers.dense(output, 1)[:, 0]
+		output = tf.layers.dense(output, 1, kernel_initializer=variable_initializer(initializer))[:, 0]
 
 	# Don't need to aggregate batchnorm update ops like we do for the generator because we only use the discriminator for training
 	return output
 
-"""
-	# DISCRIMINATOR IMPLEMENTATION based on : https://github.com/carpedm20/DCGAN-tensorflow/blob/master/model.py
-	def discriminator(self, image, t_text_embedding, reuse=False):
-		with tf.variable_scope(tf.get_variable_scope()) as scope:
-			if reuse: scope.reuse_variables()
 
-			h0 = ops.lrelu(ops.conv2d(input_=image, output_dim=self.df_dim, name='d_h0_conv')) # shape: (batch_size, 32, 32, 64)
-			h1 = ops.lrelu(ops.conv2d(input_=h0, output_dim=self.df_dim*2, name='d_h1_conv')) # shape: (batch_size, 16, 16, 128)
-			h2 = ops.lrelu(ops.conv2d(input_=h1, output_dim=self.df_dim*4, name='d_h2_conv')) # shape: (batch_size, 8, 8, 256)
-			h3 = ops.lrelu(ops.conv2d(input_=h2, output_dim=self.df_dim*8, name='d_h3_conv')) # shape: (batch_size, 4, 4, 512)
-			
-			reduced_text_embeddings = ops.lrelu(ops.linear(input_=t_text_embedding, output_size=self.t_dim, name='d_embedding')) # shape: (batch_size, 256)
-			reduced_text_embeddings = tf.expand_dims(reduced_text_embeddings, axis=1) # shape: (batch_size, 1, 256)
-			reduced_text_embeddings = tf.expand_dims(reduced_text_embeddings, axis=2) # shape: (batch_size, 1, 1, 256)
-			tiled_embeddings = tf.tile(input=reduced_text_embeddings, multiples=[1,4,4,1], name='tiled_embeddings') # shape: (batch_size, 4, 4, 256) -> This operation creates a new tensor by replicating input multiples times, tiling [a b c d] by [2] produces [a b c d a b c d]
-			
-			h3_concat = tf.concat([h3, tiled_embeddings], axis=3, name='h3_concat') # shape: (batch_size, 4, 4, 512+256)
-			h3_new = ops.lrelu(ops.conv2d(input_=h3_concat, output_dim=self.df_dim*8, k_h=1, k_w=1, d_h=1, d_w=1, name='d_h3_conv_new')) # # shape: (batch_size, 4, 4, 512)
-			
-			output_layer = ops.linear(input_=tf.reshape(h3_new, [self.batch_size, -1]), output_size=1, name='d_h3_lin')
-			return tf.nn.sigmoid(output_layer), output_layer
-"""

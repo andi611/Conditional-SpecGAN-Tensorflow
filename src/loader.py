@@ -95,8 +95,15 @@ def label_to_tensor(label, args, fps):
 	tf_mapper = _get_tf_mapper(mapper) # -->> this mapper needs to be initialized by 'sess.run(tf.tables_initializer())' if ran without MonitoredSession
 	
 	if len(mapper['word2idx']) != args._VOCAB_SIZE: raise ValueError('Number of vocabulary inconsistent!')
-	tensor = _label_to_categorical(label, tf_mapper, args.train_batch_size, depth=args._VOCAB_SIZE)
-	return tensor
+	label_idx = tf_mapper.lookup(keys=label)
+	label_one_hot = tf.one_hot(indices=label_idx, depth=args._VOCAB_SIZE)
+
+	#---generate wrong label---#
+	random_idx = tf.random_uniform(dtype=tf.int32, minval=0, maxval=10, shape=[args.train_batch_size]) # First sample from [minval, maxval)
+	wrong_label = tf.where(random_idx >= label_idx, random_idx+1, random_idx) # Increment for values == the original label
+	wrong_one_hot = tf.one_hot(indices=wrong_label, depth=args._VOCAB_SIZE)
+	
+	return label_one_hot, wrong_one_hot
 
 
 ######################
@@ -196,15 +203,4 @@ def _get_tf_mapper(mapper):
 							default_value=-1)
 	return tf_mapper
 
-
-########################
-# LABEL TO CATEGORICAL #
-########################
-"""
-	Convert string labels to categorical representation
-"""
-def _label_to_categorical(label, tf_mapper, batch_size, depth):
-	idx = tf_mapper.lookup(keys=label)
-	one_hot = tf.one_hot(indices=idx, depth=depth)
-	return one_hot
 

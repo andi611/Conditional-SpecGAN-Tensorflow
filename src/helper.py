@@ -106,7 +106,9 @@ class tf_train_LoggerHook(tf.train.SessionRunHook):
 		self.save_log_step = args.train_save_log_step
 		self.D_loss = losses[0]
 		self.G_loss = losses[1]
-		try: assert len(losses) <= 2
+		try: self.W_distance = losses[2]
+		except: pass
+		try: assert len(losses) <= 3 and len(losses) >= 2
 		except: raise NotImplementedError()
 	
 	def begin(self):
@@ -125,7 +127,9 @@ class tf_train_LoggerHook(tf.train.SessionRunHook):
 	def before_run(self, run_context):
 		self._step += 1
 		# returns the tensor or op in [] for inspection during the training session
-		return tf.train.SessionRunArgs([self.D_loss, self.G_loss])
+		try: run_values_list = [self.D_loss, self.G_loss, self.W_distance]
+		except: run_values_list = [self.D_loss, self.G_loss]
+		return tf.train.SessionRunArgs(run_values_list)
 
 	def after_run(self, run_context, run_values):
 		if self._step % self.display_step == 0:
@@ -138,14 +142,20 @@ class tf_train_LoggerHook(tf.train.SessionRunHook):
 			# reuslts store the returned values from before_run(), returns a list if given a list input
 			D_loss = run_values.results[0]
 			G_loss = run_values.results[1]
+			try: W_distance = run_values.results[2]
+			except: pass
 
 			# compute information
 			examples_per_sec = self.display_step * self.batch_size / duration
 			sec_per_batch = float(duration / self.display_step)
 
 			# print
-			format_str = ('%s: step %d, D_loss = %.2f, G_loss = %.2f, (%.1f examples/sec; %.3f sec/batch)')
-			print(format_str % (datetime.now(), self._step, D_loss, G_loss, examples_per_sec, sec_per_batch))
+			try: 
+				format_str = ('%s: step %d, W_dist = %.2f, D_loss = %.2f, G_loss = %.2f, (%.1f examples/sec)')
+				print(format_str % (datetime.now(), self._step, W_distance, D_loss, G_loss, examples_per_sec))
+			except: 
+				format_str = ('%s: step %d, D_loss = %.2f, G_loss = %.2f, (%.1f examples/sec; %.3f sec/batch)')
+				print(format_str % (datetime.now(), self._step, D_loss, G_loss, examples_per_sec, sec_per_batch))
 
 		if self._step % self.save_log_step == 0:
 			pickle.dump(self.D_log, open(os.path.join(self.train_dir, 'd_log.pkl'), 'wb'), True)

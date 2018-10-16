@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*- #
 """*********************************************************************************************"""
 #   FileName     [ visualize_wav.py ]
-#   Synopsis     [ generate .jpeg images from .wav audios ]
+#   Synopsis     [ generate .tfrecord files from .wav audios ]
 #   Author       [ Ting-Wei Liu (Andi611) ]
 #   Copyright    [ Copyleft(c), NTUEE, NTU, Taiwan ]
 """*********************************************************************************************"""
@@ -43,8 +43,8 @@ def main():
 	parser.add_argument('--labels_whitelist', type=str)
 
 	parser.set_defaults(
-			in_dir='../../data/sc09_preprocess_wav',
-			out_dir='../../data/sc09_preprocess',
+			in_dir='../../data/sc09_preprocess_wav_energy',
+			out_dir='../../data/sc09_preprocess_energy',
 			tfrecord_prefix='sc09',
 			ext='wav',
 			fs=16000,

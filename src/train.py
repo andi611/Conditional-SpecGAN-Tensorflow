@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*- #
 """*********************************************************************************************"""
-#   FileName     [ train_specgan.py ]
-#   Synopsis     [ train the specGAN model ]
+#   FileName     [ train.py ]
+#   Synopsis     [ train the SpecGAN model ]
 #   Author       [ Ting-Wei Liu (Andi611) ]
 #   Copyright    [ Copyleft(c), NTUEE, NTU, Taiwan ]
 """*********************************************************************************************"""
@@ -21,7 +21,7 @@ import tensorflow as tf
 import loader
 import helper
 from config import get_config
-from specgan import word_embedding, SpecGANGenerator, SpecGANDiscriminator
+from model import word_embedding, Spec_GAN_Generator, Spec_GAN_Discriminator
 
 
 """
@@ -31,10 +31,12 @@ def train(fps, args, cond=False):
 	
 	with tf.name_scope('loader'):
 		if cond:
+			#---data flow of a batch of (x, y) training data--@
 			x_wav, y_label = loader.get_batch(fps, args.train_batch_size, args._WINDOW_LEN, args.data_first_window, labels=True)
 			
 			#---parse label from tensor to categorical---#
-			y = label_to_tensor(label=y_label, args=args, fps=fps)
+			y, w = loader.label_to_tensor(label=y_label, args=args, fps=fps)  # (right, wrong) labels
+
 		else:
 			x_wav = loader.get_batch(fps, args.train_batch_size, args._WINDOW_LEN, args.data_first_window)
 		x = helper.t_to_f(x_wav, args.data_moments_mean, args.data_moments_std)
@@ -42,20 +44,26 @@ def train(fps, args, cond=False):
 	#---word embedding---#
 	if cond:
 		with tf.variable_scope('word_embedding'):
-			w_emb = word_embedding(w=y, vocab_size=args._VOCAB_SIZE, embedding_dim=args.specgan_word_embedding_dim, train=True)
+			y_emb = word_embedding(word=y, vocab_size=args._VOCAB_SIZE, embedding_dim=args.SpecGAN_word_embedding_dim, train=False)
+		with tf.variable_scope('word_embedding', reuse=True):
+			w_emb = word_embedding(word=w, vocab_size=args._VOCAB_SIZE, embedding_dim=args.SpecGAN_word_embedding_dim, train=False)		
 	
 	# Make z vector
-	z = tf.random_uniform([args.train_batch_size, args._D_Z], -1., 1., dtype=tf.float32)
+	if args.SpecGAN_prior_noise == 'uniform':
+		z = tf.random_uniform([args.train_batch_size, args._D_Z], minval=-1., maxval=1., dtype=tf.float32)
+	elif args.SpecGAN_prior_noise == 'normal':
+		z = tf.random_normal([args.train_batch_size, args._D_Z], mean=0., stddev=1., dtype=tf.float32)
+	else:
+		raise NotImplementedError()
 
 
 	# Make generator
 	with tf.variable_scope('G'):
 		if cond: 
-			G_z = SpecGANGenerator(z, w=w_emb, train=True, cond=True, **args.specgan_g_kwargs)
+			G_z = Spec_GAN_Generator(z, word=y_emb, train=True, cond=True, **args.SpecGAN_g_kwargs)
 		else:
-			G_z = SpecGANGenerator(z, train=True, **args.specgan_g_kwargs)
+			G_z = Spec_GAN_Generator(z, train=True, **args.SpecGAN_g_kwargs)
 	G_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='G')
-	if cond: G_vars = G_vars + tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='word_embedding')
 
 
 	# Print G summary
@@ -70,30 +78,13 @@ def train(fps, args, cond=False):
 	print('Total params: {} ({:.2f} MB)'.format(nparams, (float(nparams) * 4) / (1024 * 1024)))
 
 
-	# Summarize
-	x_gl = helper.f_to_t(x, args.data_moments_mean, args.data_moments_std, args.specgan_ngl)
-	G_z_gl = helper.f_to_t(G_z, args.data_moments_mean, args.data_moments_std, args.specgan_ngl)
-	tf.summary.audio('x_wav', x_wav, args._FS)
-	tf.summary.audio('x', x_gl, args._FS)
-	tf.summary.audio('G_z', G_z_gl, args._FS)
-	G_z_rms = tf.sqrt(tf.reduce_mean(tf.square(G_z_gl[:, :, 0]), axis=1))
-	x_rms = tf.sqrt(tf.reduce_mean(tf.square(x_gl[:, :, 0]), axis=1))
-	tf.summary.histogram('x_rms_batch', x_rms)
-	tf.summary.histogram('G_z_rms_batch', G_z_rms)
-	tf.summary.scalar('x_rms', tf.reduce_mean(x_rms))
-	tf.summary.scalar('G_z_rms', tf.reduce_mean(G_z_rms))
-	tf.summary.image('x', helper.f_to_img(x))
-	tf.summary.image('G_z', helper.f_to_img(G_z))
-
-
 	# Make real discriminator
 	with tf.name_scope('D_x'), tf.variable_scope('D'):
 		if cond:
-			D_x = SpecGANDiscriminator(x, w=w_emb, cond=True, **args.specgan_d_kwargs)
+			D_x = Spec_GAN_Discriminator(x, word=y_emb, cond=True, **args.SpecGAN_d_kwargs)
 		else:
-			D_x = SpecGANDiscriminator(x, **args.specgan_d_kwargs)
+			D_x = Spec_GAN_Discriminator(x, **args.SpecGAN_d_kwargs)
 	D_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='D')
-	if cond: D_vars = D_vars + tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='word_embedding')
 
 
 	# Print D summary
@@ -111,12 +102,21 @@ def train(fps, args, cond=False):
 
 	# Make fake discriminator
 	with tf.name_scope('D_G_z'), tf.variable_scope('D', reuse=True):
-		D_G_z = SpecGANDiscriminator(G_z, **args.specgan_d_kwargs)
+		if cond:
+			D_G_z = Spec_GAN_Discriminator(G_z, word=y_emb, cond=True, **args.SpecGAN_d_kwargs)
+		else:
+			D_G_z = Spec_GAN_Discriminator(G_z, **args.SpecGAN_d_kwargs)
+
+	# Make mismatch discriminator
+	with tf.name_scope('D_G_w'), tf.variable_scope('D', reuse=True):
+		if cond:
+			D_x_w = Spec_GAN_Discriminator(x, word=w_emb, cond=True, **args.SpecGAN_d_kwargs)
 
 
 	# Create loss
 	D_clip_weights = None
-	if args.specgan_loss == 'dcgan':
+	if args.SpecGAN_loss == 'dcgan':
+		if cond: raise NotImplementedError()
 		fake = tf.zeros([args.train_batch_size], dtype=tf.float32)
 		real = tf.ones([args.train_batch_size], dtype=tf.float32)
 
@@ -135,12 +135,14 @@ def train(fps, args, cond=False):
 		))
 
 		D_loss /= 2.
-	elif args.specgan_loss == 'lsgan':
+	elif args.SpecGAN_loss == 'lsgan':
+		if cond: raise NotImplementedError()
 		G_loss = tf.reduce_mean((D_G_z - 1.) ** 2)
 		D_loss = tf.reduce_mean((D_x - 1.) ** 2)
 		D_loss += tf.reduce_mean(D_G_z ** 2)
 		D_loss /= 2.
-	elif args.specgan_loss == 'wgan':
+	elif args.SpecGAN_loss == 'wgan':
+		if cond: raise NotImplementedError()
 		G_loss = -tf.reduce_mean(D_G_z)
 		D_loss = tf.reduce_mean(D_G_z) - tf.reduce_mean(D_x)
 
@@ -155,15 +157,19 @@ def train(fps, args, cond=False):
 					)
 				)
 			D_clip_weights = tf.group(*clip_ops)
-	elif args.specgan_loss == 'wgan-gp':
-		G_loss = -tf.reduce_mean(D_G_z) # - D fake
-		D_loss = tf.reduce_mean(D_G_z) - tf.reduce_mean(D_x) # D fake - D real
+	elif args.SpecGAN_loss == 'wgan-gp':
+		G_loss = - tf.reduce_mean(D_G_z) # - D fake
+		if cond:
+			D_loss = - (tf.reduce_mean(D_x) - tf.reduce_mean(D_G_z))
+			D_loss += - (tf.reduce_mean(D_x) - tf.reduce_mean(D_x_w))
+		else:
+			D_loss = - (tf.reduce_mean(D_x) - tf.reduce_mean(D_G_z)) # min (D real - D fake) => D fake - D real
 
 		alpha = tf.random_uniform(shape=[args.train_batch_size, 1, 1, 1], minval=0., maxval=1.)
 		differences = G_z - x
 		interpolates = x + (alpha * differences)
 		with tf.name_scope('D_interp'), tf.variable_scope('D', reuse=True):
-			D_interp = SpecGANDiscriminator(interpolates, **args.specgan_d_kwargs)
+			D_interp = Spec_GAN_Discriminator(interpolates, **args.SpecGAN_d_kwargs)
 
 		LAMBDA = 10
 		gradients = tf.gradients(D_interp, [interpolates])[0]
@@ -174,29 +180,27 @@ def train(fps, args, cond=False):
 		raise NotImplementedError()
 
 
-	tf.summary.scalar('G_loss', G_loss)
-	tf.summary.scalar('D_loss', D_loss)
 
 
 	# Create (recommended) optimizer
-	if args.specgan_loss == 'dcgan':
+	if args.SpecGAN_loss == 'dcgan':
 		G_opt = tf.train.AdamOptimizer(
 				learning_rate=2e-4,
 				beta1=0.5)
 		D_opt = tf.train.AdamOptimizer(
 				learning_rate=2e-4,
 				beta1=0.5)
-	elif args.specgan_loss == 'lsgan':
+	elif args.SpecGAN_loss == 'lsgan':
 		G_opt = tf.train.RMSPropOptimizer(
 				learning_rate=1e-4)
 		D_opt = tf.train.RMSPropOptimizer(
 				learning_rate=1e-4)
-	elif args.specgan_loss == 'wgan':
+	elif args.SpecGAN_loss == 'wgan':
 		G_opt = tf.train.RMSPropOptimizer(
 				learning_rate=5e-5)
 		D_opt = tf.train.RMSPropOptimizer(
 				learning_rate=5e-5)
-	elif args.specgan_loss == 'wgan-gp':
+	elif args.SpecGAN_loss == 'wgan-gp':
 		G_opt = tf.train.AdamOptimizer(
 				learning_rate=1e-4,
 				beta1=0.5,
@@ -208,6 +212,26 @@ def train(fps, args, cond=False):
 	else:
 		raise NotImplementedError()
 
+	# Summarize
+	x_gl = helper.f_to_t(x, args.data_moments_mean, args.data_moments_std, args.SpecGAN_ngl)
+	G_z_gl = helper.f_to_t(G_z, args.data_moments_mean, args.data_moments_std, args.SpecGAN_ngl)
+	tf.summary.audio('x_wav', x_wav, args._FS)
+	tf.summary.audio('x', x_gl, args._FS)
+	tf.summary.audio('G_z', G_z_gl, args._FS)
+	G_z_rms = tf.sqrt(tf.reduce_mean(tf.square(G_z_gl[:, :, 0]), axis=1))
+	x_rms = tf.sqrt(tf.reduce_mean(tf.square(x_gl[:, :, 0]), axis=1))
+	tf.summary.histogram('x_rms_batch', x_rms)
+	tf.summary.histogram('G_z_rms_batch', G_z_rms)
+	tf.summary.scalar('x_rms', tf.reduce_mean(x_rms))
+	tf.summary.scalar('G_z_rms', tf.reduce_mean(G_z_rms))
+	tf.summary.image('x', helper.f_to_img(x))
+	tf.summary.image('G_z', helper.f_to_img(G_z))
+	try:
+		W_distance = tf.reduce_mean(D_x) - 2*tf.reduce_mean(D_G_z)
+		tf.summary.scalar('W_distance', W_distance)
+	except: pass
+	tf.summary.scalar('G_loss', G_loss)
+	tf.summary.scalar('D_loss', D_loss)
 
 	# Create training ops
 	G_train_op = G_opt.minimize(G_loss, var_list=G_vars, global_step=tf.train.get_or_create_global_step())
@@ -220,13 +244,13 @@ def train(fps, args, cond=False):
 	with tf.train.MonitoredTrainingSession(
 					hooks=[tf.train.StopAtStepHook(last_step=args.train_max_step), # hook that stops training at max_step
 						   tf.train.NanTensorHook(D_loss), # hook that monitors the loss, terminate if loss is NaN
-						   helper.tf_train_LoggerHook(args, losses=[D_loss, G_loss])], # user defiend log printing hook
+						   helper.tf_train_LoggerHook(args, losses=[D_loss, G_loss, W_distance])], # user defiend log printing hook
 					checkpoint_dir=args.train_dir,
 					save_checkpoint_secs=args.train_save_secs,
 					save_summaries_secs=args.train_summary_secs) as sess:
 		while not sess.should_stop():
 			# Train discriminator
-			for i in range(args.specgan_disc_nupdates):
+			for i in range(args.SpecGAN_disc_nupdates):
 				sess.run(D_train_op)
 
 				# Enforce Lipschitz constraint for WGAN
@@ -248,7 +272,7 @@ def train(fps, args, cond=False):
 		'flat_pad:0' int32 []: Number of padding samples to use when flattening batch to a single audio file
 		'G_z_norm:0' float32 [None, 128, 128, 1]: Generated outputs (frequency domain)
 		'G_z:0' float32 [None, 16384, 1]: Generated outputs (Griffin-Lim'd to time domain)
-		'G_z_norm_uint8:0' uint8 [None, 128, 128, 1]: Preview spectrogram image
+		'G_z_norm_uint8:0' uint8 [None, 128, 128, 1]: Preview speechtrogram image
 		'G_z_int16:0' int16 [None, 16384, 1]: Same as above but quantizied to 16-bit PCM samples
 		'G_z_flat:0' float32 [None, 1]: Outputs flattened into single audio file
 		'G_z_flat_int16:0' int16 [None, 1]: Same as above but quantized to 16-bit PCM samples
@@ -284,14 +308,14 @@ def infer(args, cond=False):
 		idx_word_label = tf.placeholder(tf.int32, [None], name='cond_word_label')
 		tensor = loader.idx_to_categorical(idx_word_label, args)
 		with tf.variable_scope('word_embedding'):
-			w_emb = word_embedding(w=tensor, vocab_size=args._VOCAB_SIZE, embedding_dim=args.specgan_word_embedding_dim, train=False)
+			emb = word_embedding(word=tensor, vocab_size=args._VOCAB_SIZE, embedding_dim=args.SpecGAN_word_embedding_dim, train=False)
 
 	# Execute generator
 	with tf.variable_scope('G'):
 		if cond: 
-			G_z_norm = SpecGANGenerator(z, w=w_emb, train=False, cond=True, **args.specgan_g_kwargs)
+			G_z_norm = Spec_GAN_Generator(z, word=emb, train=False, cond=True, **args.SpecGAN_g_kwargs)
 		else:
-			G_z_norm = SpecGANGenerator(z, train=False, **args.specgan_g_kwargs)
+			G_z_norm = Spec_GAN_Generator(z, train=False, **args.SpecGAN_g_kwargs)
 	G_z_norm = tf.identity(G_z_norm, name='G_z_norm')
 	G_z = helper.f_to_t(G_z_norm, args.data_moments_mean, args.data_moments_std, ngl)
 	G_z = tf.identity(G_z, name='G_z')
@@ -371,7 +395,7 @@ def preview(args):
 	# Set up graph for generating preview images
 	feeds = {}
 	feeds[graph.get_tensor_by_name('z:0')] = _zs
-	feeds[graph.get_tensor_by_name('ngl:0')] = args.specgan_ngl
+	feeds[graph.get_tensor_by_name('ngl:0')] = args.SpecGAN_ngl
 	feeds[graph.get_tensor_by_name('flat_pad:0')] = args._WINDOW_LEN // 2
 	fetches =  {}
 	fetches['step'] = tf.train.get_or_create_global_step()
@@ -481,7 +505,7 @@ def incept(args):
 
 			_G_zs = []
 			for i in range(0, args.incept_n, 100):
-				_G_zs.append(sess.run(gan_G_z, {gan_z: _zs[i:i+100], gan_ngl: args.specgan_ngl}))
+				_G_zs.append(sess.run(gan_G_z, {gan_z: _zs[i:i+100], gan_ngl: args.SpecGAN_ngl}))
 			_G_zs = np.concatenate(_G_zs, axis=0)
 
 			_preds = []

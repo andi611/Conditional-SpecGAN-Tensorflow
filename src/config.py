@@ -21,15 +21,17 @@ def get_config():
 	data_args.add_argument('--data_first_window', action='store_true', help='If set, only use the first window from each audio example')
 	data_args.add_argument('--data_moments_fp', type=str, help='Path to store and retrieve the data moments .pkl file')
 
-	specgan_args = parser.add_argument_group('SpecGAN')
-	specgan_args.add_argument('--specgan_kernel_len', type=int, help='Length of square 2D filter kernels')
-	specgan_args.add_argument('--specgan_dim', type=int, help='Dimensionality multiplier for model of G and D')
-	specgan_args.add_argument('--specgan_batchnorm', action='store_true', help='Enable batchnorm')
-	specgan_args.add_argument('--specgan_disc_nupdates', type=int, help='Number of discriminator updates per generator update')
-	specgan_args.add_argument('--specgan_loss', type=str, choices=['dcgan', 'lsgan', 'wgan', 'wgan-gp'], help='Which GAN loss to use')
-	specgan_args.add_argument('--specgan_genr_upsample', type=str, choices=['zeros', 'nn', 'lin', 'cub'], help='Generator upsample strategy')
-	specgan_args.add_argument('--specgan_ngl', type=int, help='Number of Griffin-Lim iterations')
-	specgan_args.add_argument('--specgan_word_embedding_dim', type=int, help='Dimension for word conditional vectors')
+	SpecGAN_args = parser.add_argument_group('SpecGAN')
+	SpecGAN_args.add_argument('--SpecGAN_kernel_len', type=int, help='Length of square 2D filter kernels')
+	SpecGAN_args.add_argument('--SpecGAN_dim', type=int, help='Dimensionality multiplier for model of G and D')
+	SpecGAN_args.add_argument('--SpecGAN_batchnorm', action='store_true', help='Enable batchnorm')
+	SpecGAN_args.add_argument('--SpecGAN_disc_nupdates', type=int, help='Number of discriminator updates per generator update')
+	SpecGAN_args.add_argument('--SpecGAN_loss', type=str, choices=['dcgan', 'lsgan', 'wgan', 'wgan-gp'], help='Which GAN loss to use')
+	SpecGAN_args.add_argument('--SpecGAN_genr_upsample', type=str, choices=['zeros', 'nn', 'lin', 'cub'], help='Generator upsample strategy')
+	SpecGAN_args.add_argument('--SpecGAN_ngl', type=int, help='Number of Griffin-Lim iterations')
+	SpecGAN_args.add_argument('--SpecGAN_word_embedding_dim', type=int, help='Dimension for word conditional vectors')
+	SpecGAN_args.add_argument('--SpecGAN_model_initializer', type=str, choices=['orthogonal', 'default'], help='GAN model initializer')
+	SpecGAN_args.add_argument('--SpecGAN_prior_noise', type=str, choices=['uniform', 'normal'], help='GAN prior distribution')
 
 	train_args = parser.add_argument_group('Train')
 	train_args.add_argument('--train_dir', type=str, help='Training directory')
@@ -64,21 +66,23 @@ def get_config():
 
 	parser.set_defaults(
 		#---data---#
-		data_dir='../data/sc09_preprocess',
+		data_dir='../data/sc09_preprocess_energy',
 		data_tfrecord_prefix='sc09',
 		data_first_window=False,
 		data_moments_file='moments.pkl',
-		#---specgan---#
-		specgan_kernel_len=5,
-		specgan_dim=64,
-		specgan_batchnorm=False,
-		specgan_disc_nupdates=5,
-		specgan_loss='wgan-gp',
-		specgan_genr_upsample='zeros',
-		specgan_ngl=16,
-		specgan_word_embedding_dim=256,
+		#---SpecGAN---#
+		SpecGAN_kernel_len=5,
+		SpecGAN_dim=64,
+		SpecGAN_batchnorm=False,
+		SpecGAN_disc_nupdates=5,
+		SpecGAN_loss='wgan-gp',
+		SpecGAN_genr_upsample='zeros',
+		SpecGAN_ngl=16,
+		SpecGAN_word_embedding_dim=10,
+		SpecGAN_model_initializer='default',
+		SpecGAN_prior_noise='normal',
 		#---train---#
-		train_dir='../train',
+		train_dir='../train_energy',
 		train_batch_size=64,
 		train_max_step=300000,
 		train_save_secs=300,
@@ -93,9 +97,9 @@ def get_config():
 		incept_n=5000,
 		incept_k=10,
 		#---generate---#
-		generate_dir='../generate',
+		generate_dir='../generate_energy',
 		generate_num=50,
-		generate_visualize_num=5,
+		generate_visualize_num=50,
 		#---constant---#
 		_VOCAB_SIZE=10,
 		_FS=16000,
