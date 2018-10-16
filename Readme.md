@@ -1,4 +1,4 @@
-# conditional SpecGAN
+# Conditional SpecGAN
 **A (conditional) audio synthesis generative adversarial network that generates spectrogram, which furthur synthesize raw waveform, implementation in Tensorflow.**
 ![](https://github.com/andi611/conditional_SpecGAN_Tensorflow/blob/master/data/model.png)
 
