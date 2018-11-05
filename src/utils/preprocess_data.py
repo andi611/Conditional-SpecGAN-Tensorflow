@@ -163,7 +163,7 @@ def _hamming_window(m, n, L):
 	Given an original waveform, compute the short time energy using the hamming window,
 	and returns a list En, which is the computed energy curve.
 """
-def _compute_short_time_energy(waveform, length_n, L=window_size):
+def _compute_short_time_energy(waveform, L=window_size):
 	En = []
 	for _ in range(int(L/2)): En.append(0)
 	for n in range(int(L/2), len(waveform) - int(L/2)):
