@@ -64,7 +64,7 @@ def process_audio(wavs, start_from=0, use_energy=False):
 			threshold = 0.01
 			if use_energy:
 				print('Progress: %i/%i, computing energy...' % (i+1, len(wavs)), end='\r')
-				En = _compute_short_time_energy(waveform=y, length_n=sr)
+				En = _compute_short_time_energy(waveform=y)
 				#---end point detection with energy---#
 				yt = _energy_based_truncation(waveform=y, energy=En, threshold=threshold)
 				while librosa.get_duration(yt) > librosa.get_duration(y)*(2/3):
